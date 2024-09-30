@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import moment from 'moment-timezone';
@@ -16,16 +17,9 @@ const getTimezoneAbbreviation = (timezone) => {
 
 const getCommonTimezones = () => {
   const commonZones = [
-    'America/New_York',
-    'America/Chicago',
-    'America/Denver',
-    'America/Los_Angeles',
-    'America/Anchorage',
-    'Pacific/Honolulu',
-    'Europe/London',
-    'Europe/Paris',
-    'Asia/Tokyo',
-    'Australia/Sydney'
+    'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+    'America/Anchorage', 'Pacific/Honolulu', 'Europe/London', 'Europe/Paris',
+    'Asia/Tokyo', 'Australia/Sydney'
   ];
   
   return moment.tz.names().filter(tz => 
@@ -33,35 +27,81 @@ const getCommonTimezones = () => {
   );
 };
 
-const SelectedSlotEvent = ({ event, onRemove }) => (
+const EventModal = ({ isOpen, onClose, event, onRemove }) => {
+  if (!isOpen || !event) return null;
+
+  console.log('Rendering modal:', { isOpen, event });  // Debug log
+
+  return createPortal(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <h2>Available Time Slot</h2>
+        <p>Start: {moment(event.start).format('MMMM D, YYYY h:mm A')}</p>
+        <p>End: {moment(event.end).format('MMMM D, YYYY h:mm A')}</p>
+        <div className="modal-buttons">
+          <button onClick={() => onRemove(event)} className="remove-button">Remove Slot</button>
+          <button onClick={onClose} className="close-button">Close</button>
+        </div>
+      </div>
+      <style jsx>{`
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(0, 0, 0, 0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 1000;
+        }
+        .modal-content {
+          background-color: white;
+          padding: 20px;
+          border-radius: 5px;
+          width: 300px;
+          max-width: 90%;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .modal-buttons {
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 20px;
+        }
+        .remove-button, .close-button {
+          padding: 10px 15px;
+          margin-left: 10px;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+        .remove-button {
+          background-color: #ff4d4f;
+          color: white;
+        }
+        .close-button {
+          background-color: #d9d9d9;
+        }
+        .remove-button:hover, .close-button:hover {
+          opacity: 0.8;
+        }
+      `}</style>
+    </div>,
+    document.body
+  );
+};
+
+const SelectedSlotEvent = ({ event }) => (
   <div style={{ 
     backgroundColor: 'rgba(0, 200, 0, 0.5)', 
     padding: '2px 5px', 
     borderRadius: '3px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    height: '100%'
+    height: '100%',
   }}>
     <span>Available</span>
-    <button 
-      onClick={(e) => {
-        e.stopPropagation();
-        onRemove(event);
-      }}
-      style={{
-        background: 'none',
-        border: 'none',
-        cursor: 'pointer',
-        fontSize: '1.2em',
-        color: 'red'
-      }}
-    >
-      ×
-    </button>
   </div>
 );
-
 
 export default function CalendarView() {
   const { data: session } = useSession();
@@ -71,9 +111,7 @@ export default function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarTimezone, setCalendarTimezone] = useState(moment.tz.guess());
   const [availableSlotsTimezone, setAvailableSlotsTimezone] = useState(moment.tz.guess());
-
-
-
+  const [modalEvent, setModalEvent] = useState(null);
 
   const fetchEvents = useCallback(async (date) => {
     const startOfWeek = moment(date).startOf('week').toISOString();
@@ -108,13 +146,6 @@ export default function CalendarView() {
     }
   }, [events]);
 
-  
-
-  const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    window.location.href = '/';
-  };
-
   const handleSelectSlot = useCallback((slotInfo) => {
     const newSlot = {
       id: new Date().getTime(),
@@ -146,12 +177,25 @@ export default function CalendarView() {
     }
   }, []);
 
-  const removeSelectedSlot = useCallback((slotToRemove) => {
-    setSelectedSlots(prev => prev.filter(slot => slot.id !== slotToRemove.id));
+  const handleEventClick = useCallback((event) => {
+    console.log('Event clicked:', event);  // Debug log
+    if (event.isSelectedSlot) {
+      setModalEvent(event);
+    }
   }, []);
 
+  const closeModal = useCallback(() => {
+    console.log('Closing modal');  // Debug log
+    setModalEvent(null);
+  }, []);
 
+  const removeSelectedSlot = useCallback((slotToRemove) => {
+    console.log('Removing slot:', slotToRemove);  // Debug log
+    setSelectedSlots(prev => prev.filter(slot => slot.id !== slotToRemove.id));
+    closeModal();
+  }, [closeModal]);
 
+  
 
   const generateAvailableSlotsList = useCallback(() => {
     const groupedSlots = selectedSlots.reduce((acc, slot) => {
@@ -200,6 +244,14 @@ export default function CalendarView() {
     });
   };
 
+  const handleSignOut = async () => {
+    await signOut({ redirect: false });
+    window.location.href = '/';
+  };
+
+  console.log('Current modalEvent:', modalEvent);  // Debug log
+
+
   return (
     <div className="calendar-container">
       <div className="calendar-header">
@@ -215,7 +267,7 @@ export default function CalendarView() {
         <p>Calendar events are shown in: {getTimezoneAbbreviation(calendarTimezone)}</p>
       </div>
       <div className="calendar-view">
-      <DnDCalendar
+        <DnDCalendar
           localizer={localizer}
           events={[...events, ...selectedSlots]}
           startAccessor="start"
@@ -226,6 +278,7 @@ export default function CalendarView() {
           onSelectSlot={handleSelectSlot}
           onEventDrop={handleEventDrop}
           onEventResize={handleEventResize}
+          onSelectEvent={handleEventClick}
           onNavigate={setCurrentDate}
           view="week"
           views={['week']}
@@ -233,19 +286,25 @@ export default function CalendarView() {
           timeslots={4}
           components={{
             event: (props) => props.event.isSelectedSlot 
-              ? <SelectedSlotEvent {...props} onRemove={removeSelectedSlot} />
+              ? <SelectedSlotEvent {...props} />
               : <div className="event-item">{props.title}</div>
           }}
           eventPropGetter={(event) => ({
             className: event.isSelectedSlot ? 'selected-slot' : 'calendar-event',
             style: {
-              cursor: event.isSelectedSlot ? 'move' : 'default',
+              cursor: event.isSelectedSlot ? 'pointer' : 'default',
             }
           })}
           draggableAccessor={(event) => event.isSelectedSlot}
           resizableAccessor={(event) => event.isSelectedSlot}
         />
       </div>
+      <EventModal 
+        isOpen={!!modalEvent} 
+        onClose={closeModal} 
+        event={modalEvent} 
+        onRemove={removeSelectedSlot}
+      />
       <div className="action-section">
         <div className="timezone-selector">
           <label htmlFor="available-slots-timezone-select">Timezone for available slots: </label>
@@ -270,134 +329,145 @@ export default function CalendarView() {
         </div>
       )}
       <style jsx>{`
-  .calendar-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-    font-family: Arial, sans-serif;
-  }
-  .calendar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-  .calendar-subheader {
-    margin-bottom: 20px;
-    font-style: italic;
-    color: #666;
-  }
-  .user-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .sign-out-button {
-    padding: 5px 10px;
-    background-color: #f44336;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-  }
-  .sign-out-button:hover {
-    background-color: #d32f2f;
-  }
-  .calendar-view {
-    height: 600px;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 20px;
-  }
-  .action-section {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-  }
-  .timezone-selector {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .timezone-selector select {
-    padding: 5px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-  }
-  .action-buttons {
-    display: flex;
-    gap: 10px;
-  }
-  .action-buttons button {
-    padding: 10px 20px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-  }
-  .action-buttons button:hover {
-    background-color: #45a049;
-  }
-  .preview-container {
-    margin-top: 20px;
-    padding: 15px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: #f9f9f9;
-  }
-  .preview-container pre {
-    white-space: pre-wrap;
-    word-wrap: break-word;
-  }
-  
-  :global(.calendar-event) {
-    background-color: #3174ad;
-    color: white;
-    border-radius: 3px;
-    padding: 2px 5px;
-  }
-  :global(.rbc-calendar) {
-    background-color: white;
-  }
-  :global(.rbc-header) {
-    background-color: #f0f0f0;
-    padding: 10px;
-  }
-  :global(.rbc-timeslot-group) {
-    border-bottom: 1px solid #e0e0e0;
-  }
-  :global(.rbc-time-view) {
-    border: none;
-  }
-  :global(.rbc-time-header-content) {
-    border-left: none;
-
- 
-
-  :global(.selected-slot) {
-    background-color: rgba(0, 200, 0, 0.5) !important;
-    cursor: move;
-  }
-  :global(.rbc-event-content) {
-    height: 100%;
-  }
-  :global(.rbc-addons-dnd-resize-ns-icon) {
-    width: 10px;
-    height: 10px;
-    background-color: #000;
-    border-radius: 50%;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-  }
-
-`}</style>
+        .calendar-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 20px;
+          font-family: Arial, sans-serif;
+        }
+        .calendar-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 10px;
+        }
+        .calendar-subheader {
+          margin-bottom: 20px;
+          font-style: italic;
+          color: #666;
+        }
+        .user-info {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .sign-out-button {
+          padding: 5px 10px;
+          background-color: #f44336;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background-color 0.3s;
+        }
+        .sign-out-button:hover {
+          background-color: #d32f2f;
+        }
+        .calendar-view {
+          height: 600px;
+          border: 1px solid #e0e0e0;
+          border-radius: 8px;
+          overflow: hidden;
+          margin-bottom: 20px;
+        }
+        .action-section {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+        }
+        .timezone-selector {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .timezone-selector select {
+          padding: 5px;
+          border-radius: 4px;
+          border: 1px solid #ccc;
+        }
+        .action-buttons {
+          display: flex;
+          gap: 10px;
+        }
+        .action-buttons button {
+          padding: 10px 20px;
+          background-color: #4CAF50;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background-color 0.3s;
+        }
+        .action-buttons button:hover {
+          background-color: #45a049;
+        }
+        .preview-container {
+          margin-top: 20px;
+          padding: 15px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+          background-color: #f9f9f9;
+        }
+        .preview-container pre {
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(0, 0, 0, 0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 1000;
+        }
+        .modal-content {
+          background-color: white;
+          padding: 20px;
+          border-radius: 5px;
+          width: 300px;
+          max-width: 90%;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .modal-buttons {
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 20px;
+        }
+        .remove-button {
+          background-color: #ff4d4f;
+          color: white;
+          border: none;
+          padding: 10px 15px;
+          margin-right: 10px;
+          cursor: pointer;
+          border-radius: 4px;
+        }
+        .close-button {
+          background-color: #d9d9d9;
+          border: none;
+          padding: 10px 15px;
+          cursor: pointer;
+          border-radius: 4px;
+        }
+        .remove-button:hover, .close-button:hover {
+          opacity: 0.8;
+        }
+        :global(.selected-slot) {
+          background-color: rgba(0, 200, 0, 0.5) !important;
+        }
+        :global(.calendar-event) {
+          background-color: #3174ad;
+          color: white;
+        }
+        :global(.rbc-event-content) {
+          height: 100%;
+        }
+      `}</style>
     </div>
   );
 }
