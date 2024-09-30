@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
+import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import moment from 'moment-timezone';
+import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { signOut, useSession } from 'next-auth/react';
 
 const localizer = momentLocalizer(moment);
+const DnDCalendar = withDragAndDrop(Calendar);
 
 const getTimezoneAbbreviation = (timezone) => {
   const abbreviation = moment().tz(timezone).format('z');
@@ -37,7 +40,8 @@ const SelectedSlotEvent = ({ event, onRemove }) => (
     borderRadius: '3px',
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    height: '100%'
   }}>
     <span>Available</span>
     <button 
@@ -57,6 +61,7 @@ const SelectedSlotEvent = ({ event, onRemove }) => (
     </button>
   </div>
 );
+
 
 export default function CalendarView() {
   const { data: session } = useSession();
@@ -103,12 +108,14 @@ export default function CalendarView() {
     }
   }, [events]);
 
+  
+
   const handleSignOut = async () => {
     await signOut({ redirect: false });
     window.location.href = '/';
   };
 
-  const handleSelectSlot = (slotInfo) => {
+  const handleSelectSlot = useCallback((slotInfo) => {
     const newSlot = {
       id: new Date().getTime(),
       title: 'Available',
@@ -117,11 +124,34 @@ export default function CalendarView() {
       isSelectedSlot: true
     };
     setSelectedSlots(prev => [...prev, newSlot]);
-  };
+  }, []);
 
-  const removeSelectedSlot = (slotToRemove) => {
+  const handleEventResize = useCallback(({ event, start, end }) => {
+    if (event.isSelectedSlot) {
+      setSelectedSlots(prev => 
+        prev.map(slot => 
+          slot.id === event.id ? { ...slot, start, end } : slot
+        )
+      );
+    }
+  }, []);
+
+  const handleEventDrop = useCallback(({ event, start, end }) => {
+    if (event.isSelectedSlot) {
+      setSelectedSlots(prev => 
+        prev.map(slot => 
+          slot.id === event.id ? { ...slot, start, end } : slot
+        )
+      );
+    }
+  }, []);
+
+  const removeSelectedSlot = useCallback((slotToRemove) => {
     setSelectedSlots(prev => prev.filter(slot => slot.id !== slotToRemove.id));
-  };
+  }, []);
+
+
+
 
   const generateAvailableSlotsList = useCallback(() => {
     const groupedSlots = selectedSlots.reduce((acc, slot) => {
@@ -133,14 +163,23 @@ export default function CalendarView() {
       return acc;
     }, {});
 
+    // Sort slots for each day
+    Object.keys(groupedSlots).forEach(day => {
+      groupedSlots[day].sort((a, b) => moment(a.start).diff(moment(b.start)));
+    });
+
+    // Sort days
+    const sortedDays = Object.keys(groupedSlots).sort((a, b) => moment(a, 'MMMM D, YYYY').diff(moment(b, 'MMMM D, YYYY')));
+
     let formattedList = `Availability (${getTimezoneAbbreviation(availableSlotsTimezone)}):\n\n`;
-    for (const [day, slots] of Object.entries(groupedSlots)) {
+    
+    sortedDays.forEach(day => {
       formattedList += `${day}\n`;
-      slots.forEach(slot => {
+      groupedSlots[day].forEach(slot => {
         formattedList += `• ${moment(slot.start).tz(availableSlotsTimezone).format('h:mm A')} - ${moment(slot.end).tz(availableSlotsTimezone).format('h:mm A')}\n`;
       });
       formattedList += '\n';
-    }
+    });
 
     return formattedList.trim();
   }, [selectedSlots, availableSlotsTimezone]);
@@ -176,25 +215,35 @@ export default function CalendarView() {
         <p>Calendar events are shown in: {getTimezoneAbbreviation(calendarTimezone)}</p>
       </div>
       <div className="calendar-view">
-        <Calendar
+      <DnDCalendar
           localizer={localizer}
           events={[...events, ...selectedSlots]}
           startAccessor="start"
           endAccessor="end"
           style={{ height: '100%' }}
           selectable
+          resizable
           onSelectSlot={handleSelectSlot}
+          onEventDrop={handleEventDrop}
+          onEventResize={handleEventResize}
           onNavigate={setCurrentDate}
           view="week"
           views={['week']}
+          step={15}
+          timeslots={4}
           components={{
             event: (props) => props.event.isSelectedSlot 
               ? <SelectedSlotEvent {...props} onRemove={removeSelectedSlot} />
               : <div className="event-item">{props.title}</div>
           }}
           eventPropGetter={(event) => ({
-            className: event.isSelectedSlot ? 'selected-slot' : 'calendar-event'
+            className: event.isSelectedSlot ? 'selected-slot' : 'calendar-event',
+            style: {
+              cursor: event.isSelectedSlot ? 'move' : 'default',
+            }
           })}
+          draggableAccessor={(event) => event.isSelectedSlot}
+          resizableAccessor={(event) => event.isSelectedSlot}
         />
       </div>
       <div className="action-section">
@@ -305,9 +354,7 @@ export default function CalendarView() {
     white-space: pre-wrap;
     word-wrap: break-word;
   }
-  :global(.selected-slot) {
-    background-color: rgba(0, 200, 0, 0.5) !important;
-  }
+  
   :global(.calendar-event) {
     background-color: #3174ad;
     color: white;
@@ -329,9 +376,28 @@ export default function CalendarView() {
   }
   :global(.rbc-time-header-content) {
     border-left: none;
+
+ 
+
+  :global(.selected-slot) {
+    background-color: rgba(0, 200, 0, 0.5) !important;
+    cursor: move;
   }
+  :global(.rbc-event-content) {
+    height: 100%;
+  }
+  :global(.rbc-addons-dnd-resize-ns-icon) {
+    width: 10px;
+    height: 10px;
+    background-color: #000;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
 `}</style>
     </div>
   );
 }
-
