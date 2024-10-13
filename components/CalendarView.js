@@ -40,7 +40,7 @@ const getColorForEmail = (email) => {
 
 
 export default function CalendarView() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [events, setEvents] = useState([]);
   const [selectedSlots, setSelectedSlots] = useState([]);
   const [availableSlotsList, setAvailableSlotsList] = useState('');
@@ -50,6 +50,8 @@ export default function CalendarView() {
   const [modalEvent, setModalEvent] = useState(null);
   const [selectedPeople, setSelectedPeople] = useState([]);
   const [userColors, setUserColors] = useState({});
+  const [includeUserCalendar, setIncludeUserCalendar] = useState(true);
+
 
   const formats = useMemo(() => ({
     eventTimeRangeFormat: () => { 
@@ -70,8 +72,14 @@ export default function CalendarView() {
           ...event,
           start: new Date(event.start),
           end: new Date(event.end),
+          title: event.title || "Busy", // Set title to "Busy" if it's undefined
           isExternal: true,
         }));
+      } else if (response.status === 401) {
+        // Token has expired, trigger re-authentication
+        await signOut({ redirect: false });
+        window.location.reload();
+        return [];
       } else {
         console.error('Failed to fetch events');
         return [];
@@ -83,8 +91,11 @@ export default function CalendarView() {
   }, []);
 
   useEffect(() => {
-    if (session?.user?.email) {
-      const emails = [session.user.email, ...selectedPeople.map(person => person.value)];
+    if (status === "authenticated" && session?.user?.email) {
+      const emails = [
+        ...(includeUserCalendar ? [session.user.email] : []),
+        ...selectedPeople.map(person => person.value)
+      ];
       const start = moment(currentDate).startOf('week').toDate();
       const end = moment(currentDate).endOf('week').toDate();
       fetchEvents(start, end, emails).then(fetchedEvents => {
@@ -94,7 +105,8 @@ export default function CalendarView() {
         });
       });
     }
-  }, [selectedPeople, currentDate, fetchEvents, session]);
+  }, [selectedPeople, currentDate, fetchEvents, status, session, includeUserCalendar]);
+
 
   const handleSelectSlot = useCallback((slotInfo) => {
     const newSlot = {
@@ -213,6 +225,10 @@ export default function CalendarView() {
     debouncedFetchDirectoryPeople(inputValue, callback);
   };
 
+  const toggleUserCalendar = () => {
+    setIncludeUserCalendar(prev => !prev);
+  };
+
   const handlePeopleChange = (selectedOptions) => {
     setSelectedPeople(selectedOptions || []);
   };
@@ -267,6 +283,13 @@ export default function CalendarView() {
     });
   };
 
+  if (status === "loading") {
+    return <div>Loading...</div>;
+  }
+
+  if (status === "unauthenticated") {
+    return <div>Please sign in to view your calendar.</div>;
+  }
 
 
   return (
@@ -298,12 +321,27 @@ export default function CalendarView() {
           classNamePrefix="react-select"
         />
       </div>
+      <div className="user-calendar-toggle">
+        <label>
+          <input 
+            type="checkbox" 
+            checked={includeUserCalendar} 
+            onChange={toggleUserCalendar} 
+          />
+          Include my calendar
+        </label>
+      </div>
       <div className="calendar-legend">
         <h3>Calendar Legend:</h3>
         <ul>
-          {allEmails.map(email => (
-            <li key={email} style={{color: getColorForUser(email)}}>
-              {email === session?.user?.email ? `${email} (You)` : email}
+          {includeUserCalendar && (
+            <li style={{color: getColorForUser(session?.user?.email)}}>
+              {session?.user?.email} (You)
+            </li>
+          )}
+          {selectedPeople.map(person => (
+            <li key={person.value} style={{color: getColorForUser(person.value)}}>
+              {person.value}
             </li>
           ))}
           <li style={{color: 'green'}}>Your Availability Slots</li>

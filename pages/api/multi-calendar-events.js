@@ -1,4 +1,3 @@
-// pages/api/multi-calendar-events.js
 import { getSession } from "next-auth/react";
 import { google } from "googleapis";
 
@@ -7,6 +6,10 @@ export default async function handler(req, res) {
 
   if (!session || !session.accessToken) {
     return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  if (session.error === "RefreshAccessTokenError") {
+    return res.status(403).json({ error: "Access denied" });
   }
 
   const oauth2Client = new google.auth.OAuth2(
@@ -49,6 +52,9 @@ export default async function handler(req, res) {
     res.status(200).json(allEvents);
   } catch (error) {
     console.error("Error fetching calendar events:", error);
+    if (error.code === 401) {
+      return res.status(401).json({ error: "Access token expired" });
+    }
     res.status(500).json({ error: "Error fetching calendar events" });
   }
 }
