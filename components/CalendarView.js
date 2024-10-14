@@ -432,40 +432,6 @@ export default function CalendarView() {
           <li style={{color: 'green'}}>Your Availability Slots</li>
         </ul>
       </div>
-      <div className="calendar-view">
-        <DnDCalendar
-          localizer={localizer}
-          events={events}
-          startAccessor="start"
-          endAccessor="end"
-          style={{ height: '600px' }}
-          onNavigate={setCurrentDate}
-          view="week"
-          views={['week']}
-          selectable
-          resizable
-          onSelectSlot={handleSelectSlot}
-          onEventDrop={handleEventDrop}
-          onEventResize={handleEventResize}
-          onSelectEvent={handleEventClick}
-          eventPropGetter={eventStyleGetter}
-          formats={formats}
-          tooltipAccessor={(event) => event.isAvailability ? 'Your availability' : `${event.title} (${event.email})`}
-        />
-      </div>
-      {modalEvent && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2>Available Time Slot</h2>
-            <p>Start: {moment(modalEvent.start).format('MMMM D, YYYY h:mm A')}</p>
-            <p>End: {moment(modalEvent.end).format('MMMM D, YYYY h:mm A')}</p>
-            <div className="modal-buttons">
-              <button onClick={() => removeSelectedSlot(modalEvent)} className="remove-button">Remove Slot</button>
-              <button onClick={closeModal} className="close-button">Close</button>
-            </div>
-          </div>
-        </div>
-      )}
       <div className="auto-populate-section">
         <h3>Auto-populate Available Slots</h3>
         <div className="time-range-inputs">
@@ -503,6 +469,41 @@ export default function CalendarView() {
             Remove All Available Slots
           </button>
       </div>
+      <div className="calendar-view">
+        <DnDCalendar
+          localizer={localizer}
+          events={events}
+          startAccessor="start"
+          endAccessor="end"
+          style={{ height: '600px' }}
+          onNavigate={setCurrentDate}
+          view="week"
+          views={['week']}
+          selectable
+          resizable
+          onSelectSlot={handleSelectSlot}
+          onEventDrop={handleEventDrop}
+          onEventResize={handleEventResize}
+          onSelectEvent={handleEventClick}
+          eventPropGetter={eventStyleGetter}
+          formats={formats}
+          tooltipAccessor={(event) => event.isAvailability ? 'Your availability' : `${event.title} (${event.email})`}
+        />
+      </div>
+      {modalEvent && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <h2>Available Time Slot</h2>
+            <p>Start: {moment(modalEvent.start).format('MMMM D, YYYY h:mm A')}</p>
+            <p>End: {moment(modalEvent.end).format('MMMM D, YYYY h:mm A')}</p>
+            <div className="modal-buttons">
+              <button onClick={() => removeSelectedSlot(modalEvent)} className="remove-button">Remove Slot</button>
+              <button onClick={closeModal} className="close-button">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="action-section">
         <div className="timezone-selector">
           <label htmlFor="available-slots-timezone-select">Timezone for available slots: </label>
@@ -667,6 +668,7 @@ export default function CalendarView() {
         }
         .auto-populate-section {
           margin-top: 20px;
+          margin-bottom: 20px;
           padding: 15px;
           border: 1px solid #ccc;
           border-radius: 4px;
@@ -730,6 +732,7 @@ export default function CalendarView() {
         
         .auto-populate-button, .remove-all-button {
           padding: 10px 20px;
+          margin-right: 10px;
           color: white;
           border: none;
           border-radius: 4px;
