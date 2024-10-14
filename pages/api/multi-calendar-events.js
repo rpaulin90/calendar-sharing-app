@@ -38,12 +38,21 @@ export default async function handler(req, res) {
         orderBy: "startTime",
       });
 
-      const events = response.data.items.map((event) => ({
+      //console.log(`Full event data for ${email}:`, JSON.stringify(response.data.items, null, 2));
+
+      const events = response.data.items
+      .filter(event => event.transparency !== "transparent")
+      .map((event) => ({
         id: event.id,
         title: event.summary,
         start: event.start.dateTime || event.start.date,
         end: event.end.dateTime || event.end.date,
         email: email,
+        allDay: !event.start.dateTime,
+        description: event.description,
+        status: event.status,
+        transparency: event.transparency,
+        visibility: event.visibility,
       }));
 
       allEvents = [...allEvents, ...events];

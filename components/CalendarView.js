@@ -37,8 +37,6 @@ const getColorForEmail = (email) => {
   return color;
 };
 
-
-
 export default function CalendarView() {
   const { data: session, status } = useSession();
   const [events, setEvents] = useState([]);
@@ -51,7 +49,19 @@ export default function CalendarView() {
   const [selectedPeople, setSelectedPeople] = useState([]);
   const [userColors, setUserColors] = useState({});
   const [includeUserCalendar, setIncludeUserCalendar] = useState(true);
+  const [autoPopulateStart, setAutoPopulateStart] = useState('09:00');
+  const [autoPopulateEnd, setAutoPopulateEnd] = useState('17:00');
+  const [includeWeekends, setIncludeWeekends] = useState(false);
 
+  const removeAllAvailableSlots = useCallback(() => {
+    const confirmRemove = window.confirm(
+      "Are you sure you want to remove all available slots?"
+    );
+    if (confirmRemove) {
+      setEvents(prevEvents => prevEvents.filter(event => !event.isAvailability));
+      setSelectedSlots([]);
+    }
+  }, []);
 
   const formats = useMemo(() => ({
     eventTimeRangeFormat: () => { 
@@ -68,15 +78,25 @@ export default function CalendarView() {
       const response = await fetch(`/api/multi-calendar-events?start=${startISO}&end=${endISO}&emails=${emailsString}`);
       if (response.ok) {
         const data = await response.json();
+
+        console.log('All events:', data);
+
+        data.forEach((event, index) => {
+          console.log(`Event ${index + 1}:`);
+          for (const [key, value] of Object.entries(event)) {
+            console.log(`  ${key}:`, value);
+          }
+          console.log('-------------------');
+        });
+
         return data.map(event => ({
           ...event,
           start: new Date(event.start),
           end: new Date(event.end),
-          title: event.title || "Busy", // Set title to "Busy" if it's undefined
+          title: event.title || "Busy",
           isExternal: true,
         }));
       } else if (response.status === 401) {
-        // Token has expired, trigger re-authentication
         await signOut({ redirect: false });
         window.location.reload();
         return [];
@@ -106,7 +126,6 @@ export default function CalendarView() {
       });
     }
   }, [selectedPeople, currentDate, fetchEvents, status, session, includeUserCalendar]);
-
 
   const handleSelectSlot = useCallback((slotInfo) => {
     const newSlot = {
@@ -190,9 +209,76 @@ export default function CalendarView() {
     }
   }, [getColorForUser]);
 
-  const allEmails = useMemo(() => {
-    return [session?.user?.email, ...selectedPeople.map(person => person.value)].filter(Boolean);
-  }, [session, selectedPeople]);
+  const findAvailableSlots = useCallback(() => {
+    const startOfWeek = moment(currentDate).startOf('week');
+    const endOfWeek = moment(currentDate).endOf('week');
+    const start = startOfWeek.clone().set({
+      hour: parseInt(autoPopulateStart.split(':')[0]),
+      minute: parseInt(autoPopulateStart.split(':')[1])
+    });
+    const end = endOfWeek.clone().set({
+      hour: parseInt(autoPopulateEnd.split(':')[0]),
+      minute: parseInt(autoPopulateEnd.split(':')[1])
+    });
+
+    const slots = [];
+    const slotDuration = 30; // 30-minute slots
+
+    while (start.isBefore(end)) {
+      if (includeWeekends || (start.day() !== 0 && start.day() !== 6)) {
+        const slotStart = start.clone();
+        const slotEnd = start.clone().add(slotDuration, 'minutes');
+
+        const isAvailable = !events.some(event => 
+          !event.isAvailability && moment(event.start).isBefore(slotEnd) && moment(event.end).isAfter(slotStart)
+        );
+
+        if (isAvailable && 
+            slotStart.hours() >= parseInt(autoPopulateStart.split(':')[0]) &&
+            slotEnd.hours() <= parseInt(autoPopulateEnd.split(':')[0])) {
+          slots.push({
+            start: slotStart.toDate(),
+            end: slotEnd.toDate(),
+          });
+        }
+      }
+
+      start.add(slotDuration, 'minutes');
+      if (start.hours() >= parseInt(autoPopulateEnd.split(':')[0])) {
+        start.add(1, 'day').set({
+          hour: parseInt(autoPopulateStart.split(':')[0]),
+          minute: parseInt(autoPopulateStart.split(':')[1])
+        });
+      }
+    }
+
+    // Combine consecutive slots
+    const combinedSlots = slots.reduce((acc, slot, index) => {
+      if (index === 0 || !moment(slot.start).isSame(acc[acc.length - 1].end)) {
+        acc.push({ ...slot, id: new Date().getTime() + index, title: 'Available', isAvailability: true });
+      } else {
+        acc[acc.length - 1].end = slot.end;
+      }
+      return acc;
+    }, []);
+
+    return combinedSlots;
+  }, [events, currentDate, autoPopulateStart, autoPopulateEnd, includeWeekends]);
+
+  const handleAutoPopulate = useCallback(() => {
+    const existingAvailableSlots = events.filter(event => event.isAvailability);
+    
+    if (existingAvailableSlots.length > 0) {
+      const confirmRemove = window.confirm(
+        "This will remove all existing available slots. Do you want to continue?"
+      );
+      if (!confirmRemove) return;
+    }
+
+    const availableSlots = findAvailableSlots();
+    setEvents(prevEvents => [...prevEvents.filter(event => !event.isAvailability), ...availableSlots]);
+    setSelectedSlots(availableSlots);
+  }, [findAvailableSlots, events]);
 
   const fetchDirectoryPeople = async (inputValue) => {
     if (inputValue.length < 3) return [];
@@ -291,7 +377,6 @@ export default function CalendarView() {
     return <div>Please sign in to view your calendar.</div>;
   }
 
-
   return (
     <div className="calendar-container">
       <div className="calendar-header">
@@ -381,6 +466,43 @@ export default function CalendarView() {
           </div>
         </div>
       )}
+      <div className="auto-populate-section">
+        <h3>Auto-populate Available Slots</h3>
+        <div className="time-range-inputs">
+          <label>
+            Start Time:
+            <input
+              type="time"
+              value={autoPopulateStart}
+              onChange={(e) => setAutoPopulateStart(e.target.value)}
+            />
+          </label>
+          <label>
+            End Time:
+            <input
+              type="time"
+              value={autoPopulateEnd}
+              onChange={(e) => setAutoPopulateEnd(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="checkbox-options">
+          <label>
+            <input
+              type="checkbox"
+              checked={includeWeekends}
+              onChange={(e) => setIncludeWeekends(e.target.checked)}
+            />
+            Include Weekends
+          </label>
+        </div>
+        <button onClick={handleAutoPopulate} className="auto-populate-button">
+          Auto-populate Available Slots
+        </button>
+        <button onClick={removeAllAvailableSlots} className="remove-all-button">
+            Remove All Available Slots
+          </button>
+      </div>
       <div className="action-section">
         <div className="timezone-selector">
           <label htmlFor="available-slots-timezone-select">Timezone for available slots: </label>
@@ -404,169 +526,233 @@ export default function CalendarView() {
           <pre>{availableSlotsList}</pre>
         </div>
       )}
-<style jsx>{`
-  .calendar-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-    font-family: Arial, sans-serif;
-  }
-  .calendar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-  .calendar-subheader {
-    margin-bottom: 20px;
-    font-style: italic;
-    color: #666;
-  }
-  .user-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .sign-out-button {
-    padding: 5px 10px;
-    background-color: #f44336;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-  }
-  .sign-out-button:hover {
-    background-color: #d32f2f;
-  }
-  .search-container {
-    margin-bottom: 20px;
-  }
-  .calendar-view {
-    height: 600px;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 20px;
-  }
-  .action-section {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-  }
-  .timezone-selector {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .timezone-selector select {
-    padding: 5px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-  }
-  .action-buttons {
-    display: flex;
-    gap: 10px;
-  }
-  .action-buttons button {
-    padding: 10px 20px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-  }
-  .action-buttons button:hover {
-    background-color: #45a049;
-  }
-  .preview-container {
-    margin-top: 20px;
-    padding: 15px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: #f9f9f9;
-  }
-  .preview-container pre {
-    white-space: pre-wrap;
-    word-wrap: break-word;
-  }
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
-  .modal-content {
-    background-color: white;
-    padding: 20px;
-    border-radius: 5px;
-    width: 300px;
-    max-width: 90%;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  }
-  .modal-buttons {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 20px;
-  }
-  .remove-button, .close-button {
-    padding: 10px 15px;
-    margin-left: 10px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  .remove-button {
-    background-color: #ff4d4f;
-    color: white;
-  }
-  .close-button {
-    background-color: #d9d9d9;
-  }
-  .remove-button:hover, .close-button:hover {
-    opacity: 0.8;
-  }
-  :global(.react-select-container) {
-    width: 100%;
-  }
-  :global(.react-select__control) {
-    border-color: #ccc;
-  }
-  :global(.react-select__option) {
-    cursor: pointer;
-  }
+      <style jsx>{`
+        .calendar-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 20px;
+          font-family: Arial, sans-serif;
+        }
+        .calendar-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 10px;
+        }
+        .calendar-subheader {
+          margin-bottom: 20px;
+          font-style: italic;
+          color: #666;
+        }
+        .user-info {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .sign-out-button {
+          padding: 5px 10px;
+          background-color: #f44336;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background-color 0.3s;
+        }
+        .sign-out-button:hover {
+          background-color: #d32f2f;
+        }
+        .search-container {
+          margin-bottom: 20px;
+        }
+        .calendar-view {
+          height: 600px;
+          border: 1px solid #e0e0e0;
+          border-radius: 8px;
+          overflow: hidden;
+          margin-bottom: 20px;
+        }
+        .action-section {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+        }
+        .timezone-selector {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .timezone-selector select {
+          padding: 5px;
+          border-radius: 4px;
+          border: 1px solid #ccc;
+        }
+        .action-buttons {
+          display: flex;
+          gap: 10px;
+        }
+        .action-buttons button {
+          padding: 10px 20px;
+          background-color: #4CAF50;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background-color 0.3s;
+        }
+        .action-buttons button:hover {
+          background-color: #45a049;
+        }
+        .preview-container {
+          margin-top: 20px;
+          padding: 15px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+          background-color: #f9f9f9;
+        }
+        .preview-container pre {
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(0, 0, 0, 0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 1000;
+        }
+        .modal-content {
+          background-color: white;
+          padding: 20px;
+          border-radius: 5px;
+          width: 300px;
+          max-width: 90%;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .modal-buttons {
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 20px;
+        }
+        .remove-button, .close-button {
+          padding: 10px 15px;
+          margin-left: 10px;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+        .remove-button {
+          background-color: #ff4d4f;
+          color: white;
+        }
+        .close-button {
+          background-color: #d9d9d9;
+        }
+        .remove-button:hover, .close-button:hover {
+          opacity: 0.8;
+        }
+        :global(.react-select-container) {
+          width: 100%;
+        }
+        :global(.react-select__control) {
+          border-color: #ccc;
+        }
+        :global(.react-select__option) {
+          cursor: pointer;
+        }
+        .auto-populate-section {
+          margin-top: 20px;
+          padding: 15px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+          background-color: #f9f9f9;
+        }
+        .time-range-inputs {
+          display: flex;
+          gap: 20px;
+          margin-bottom: 10px;
+        }
+        .time-range-inputs label {
+          display: flex;
+          flex-direction: column;
+        }
+        .time-range-inputs input[type="time"] {
+          margin-top: 5px;
+          padding: 5px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+        }
+        .checkbox-options {
+          display: flex;
+          gap: 20px;
+          margin-bottom: 10px;
+        }
+        .checkbox-options label {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+        
+        .user-calendar-toggle {
+          margin-bottom: 10px;
+        }
+        .calendar-legend {
+          margin-bottom: 20px;
+          padding: 10px;
+          border: 1px solid #e0e0e0;
+          border-radius: 4px;
+          background-color: #f9f9f9;
+        }
+        .calendar-legend h3 {
+          margin-top: 0;
+          margin-bottom: 10px;
+        }
+        .calendar-legend ul {
+          list-style-type: none;
+          padding: 0;
+          margin: 0;
+        }
+        .calendar-legend li {
+          margin-bottom: 5px;
+          font-weight: bold;
+        }
 
-  .calendar-legend {
-    margin-bottom: 20px;
-    padding: 10px;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    background-color: #f9f9f9;
-  }
-  .calendar-legend h3 {
-    margin-top: 0;
-    margin-bottom: 10px;
-  }
-  .calendar-legend ul {
-    list-style-type: none;
-    padding: 0;
-    margin: 0;
-  }
-  .calendar-legend li {
-    margin-bottom: 5px;
-    font-weight: bold;
-  }
-  
-
-`}</style>
+        .auto-populate-buttons {
+          display: flex;
+          gap: 10px;
+          margin-top: 10px;
+        }
+        
+        .auto-populate-button, .remove-all-button {
+          padding: 10px 20px;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background-color 0.3s;
+        }
+        
+        .auto-populate-button {
+          background-color: #4CAF50;
+        }
+        
+        .auto-populate-button:hover {
+          background-color: #45a049;
+        }
+        
+        .remove-all-button {
+          background-color: #f44336;
+        }
+        
+        .remove-all-button:hover {
+          background-color: #d32f2f;
+        }
+      `}</style>
     </div>
   );
 }
