@@ -79,15 +79,15 @@ export default function CalendarView() {
       if (response.ok) {
         const data = await response.json();
 
-        console.log('All events:', data);
+        //console.log('All events:', data);
 
-        data.forEach((event, index) => {
-          console.log(`Event ${index + 1}:`);
-          for (const [key, value] of Object.entries(event)) {
-            console.log(`  ${key}:`, value);
-          }
-          console.log('-------------------');
-        });
+        // data.forEach((event, index) => {
+        //   console.log(`Event ${index + 1}:`);
+        //   for (const [key, value] of Object.entries(event)) {
+        //     console.log(`  ${key}:`, value);
+        //   }
+        //   console.log('-------------------');
+        // });
 
         return data.map(event => ({
           ...event,
