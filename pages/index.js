@@ -2,10 +2,12 @@ import { signIn, signOut, useSession } from "next-auth/react"
 import Head from 'next/head'
 import { useState } from 'react'
 import CalendarView from '../components/CalendarView'
+import { ArrowRight } from 'lucide-react'
 
 export default function Home() {
   const { data: session } = useSession()
   const [isLoading, setIsLoading] = useState(false)
+  const [showPermissions, setShowPermissions] = useState(false)
 
   if (session) {
     return <CalendarView />
@@ -17,42 +19,80 @@ export default function Home() {
     setIsLoading(false)
   }
 
+  const togglePermissions = () => {
+    setShowPermissions(!showPermissions)
+  }
+
   return (
     <div className="container">
-      <Head>
-        <title>Calendar Availability App</title>
+       <Head>
+        <title>Copy Paste Calendar</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
       <main>
-        <h1 className="title">Welcome to Calendar Availability</h1>
+        <h1 className="title">Welcome to Copy Paste Calendar</h1>
         
         <p className="description">
-          Easily manage and share your available time slots
+          A simple way to find calendar availability and share it with others
         </p>
 
-        <div className="grid">
-          <div className="card">
-            <h3>View Your Calendar</h3>
-            <p>See all your events in one place with our intuitive calendar interface.</p>
+        <div className="steps-container">
+          <div className="step">
+            <div className="step-number">1</div>
+            <h3>Connect Your Calendar</h3>
+            <p>Sign in with Google to securely connect your calendar. We'll only view your events, never modify them.</p>
           </div>
-
-          <div className="card">
+          <ArrowRight className="step-arrow" />
+          <div className="step">
+            <div className="step-number">2</div>
             <h3>Select Available Slots</h3>
-            <p>Quickly mark times when you're free for meetings or appointments.</p>
+            <p>Easily mark your available time slots by clicking and dragging, or use our automatic detection feature to find your free periods effortlessly.</p>
           </div>
-
-          <div className="card">
-            <h3>Share Availability</h3>
-            <p>Generate a shareable list of your available time slots in any timezone.</p>
+          <ArrowRight className="step-arrow" />
+          <div className="step">
+            <div className="step-number">3</div>
+            <h3>Share Your Availability</h3>
+            <p>Generate a shareable list of your available time slots in any timezone with just one click.</p>
           </div>
         </div>
 
-        <div className="signin-container">
-          <button onClick={handleSignIn} disabled={isLoading} className="signin-button">
-            {isLoading ? 'Signing In...' : 'Sign in with Google'}
-          </button>
+        <div className="action-container">
+          <div className="signin-container">
+            <button onClick={handleSignIn} disabled={isLoading} className="signin-button">
+              {isLoading ? 'Signing In...' : 'Get Started - Sign in with Google'}
+            </button>
+          </div>
+
+          <div className="permissions-section">
+            <button onClick={togglePermissions} className="toggle-permissions">
+              {showPermissions ? 'Hide app access details' : 'Learn about app access'}
+            </button>
+          </div>
+
         </div>
+
+
+       
+          {showPermissions && (
+            <div className="permissions-info">
+              <h3>How We Use Google Services</h3>
+              <p>To provide you with the best experience, our app interacts with your Google account in the following ways:</p>
+              <ul>
+                <li>
+                  <strong>View your Google Calendar:</strong> We display your existing events so you can easily see your schedule. We never modify or create events without your explicit action.
+                </li>
+                <li>
+                  <strong>Access Google Directory:</strong> This allows you to search for and view the calendars of other people in your organization, making it easier to find common available time slots.
+                </li>
+                <li>
+                  <strong>See your basic profile info:</strong> We use your name and email to personalize your experience within the app. We don't modify your profile or send emails on your behalf.
+                </li>
+              </ul>
+              <p>We value your privacy. We only access the minimum information necessary for the app to function, and we never store or share your personal data.</p>
+            </div>
+          )}
+       
       </main>
 
       <footer>
@@ -66,6 +106,14 @@ export default function Home() {
       </footer>
 
       <style jsx>{`
+
+.action-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 2rem;
+}
+
         .container {
           min-height: 100vh;
           padding: 0 0.5rem;
@@ -115,58 +163,67 @@ export default function Home() {
           line-height: 1.5;
           font-size: 1.5rem;
           color: #666;
+          margin-bottom: 2rem;
         }
 
-        .grid {
+        .steps-container {
           display: flex;
           align-items: center;
           justify-content: center;
-          flex-wrap: wrap;
-          max-width: 800px;
-          margin-top: 3rem;
+          max-width: 900px;
+          margin: 3rem 0;
         }
 
-        .card {
-          margin: 1rem;
-          flex-basis: 45%;
+        .step {
+          flex: 1;
           padding: 1.5rem;
-          text-align: left;
-          color: inherit;
-          text-decoration: none;
-          border: 1px solid #eaeaea;
-          border-radius: 10px;
-          transition: color 0.15s ease, border-color 0.15s ease;
-          background-color: white;
+          text-align: center;
+          height: 200px; /* Adjust this value as needed */
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
+        }
+        
+        .step h3 {
+          margin-bottom: 1rem;
+        }
+        
+        .step p {
+          flex-grow: 1;
+          display: flex;
+          align-items: center;
         }
 
-        .card:hover,
-        .card:focus,
-        .card:active {
+        .step-number {
+          background-color: #0070f3;
+          color: white;
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          margin: 0 auto 1rem;
+          font-weight: bold;
+        }
+
+        
+
+        .step-arrow {
+          margin: 0 1rem;
           color: #0070f3;
-          border-color: #0070f3;
-        }
-
-        .card h3 {
-          margin: 0 0 1rem 0;
-          font-size: 1.5rem;
-        }
-
-        .card p {
-          margin: 0;
-          font-size: 1.25rem;
-          line-height: 1.5;
         }
 
         .signin-container {
-          margin-top: 2rem;
+          margin-bottom: 1rem;
         }
 
         .signin-button {
           background-color: #4285F4;
           color: white;
           border: none;
-          padding: 10px 20px;
-          font-size: 1rem;
+          padding: 12px 24px;
+          font-size: 1.1rem;
           border-radius: 5px;
           cursor: pointer;
           transition: background-color 0.3s ease;
@@ -181,10 +238,57 @@ export default function Home() {
           cursor: not-allowed;
         }
 
-        @media (max-width: 600px) {
-          .grid {
-            width: 100%;
+        .permissions-section {
+          text-align: center;
+        }
+
+        .toggle-permissions {
+          background-color: transparent;
+          border: none;
+          color: #0070f3;
+          padding: 10px 15px;
+          font-size: 1rem;
+          cursor: pointer;
+          transition: opacity 0.3s ease;
+        }
+
+
+        .toggle-permissions:hover {
+          opacity: 0.7;
+        }
+
+        .permissions-info {
+          margin-top: 2rem;
+          padding: 1rem;
+          background-color: #f0f4f8;
+          border: 1px solid #e0e0e0;
+          border-radius: 5px;
+          max-width: 600px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+
+        .permissions-info h3 {
+          margin-top: 0;
+          color: #333;
+        }
+
+        .permissions-info ul {
+          padding-left: 20px;
+        }
+
+        .permissions-info li {
+          margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+          .steps-container {
             flex-direction: column;
+          }
+          
+          .step-arrow {
+            transform: rotate(90deg);
+            margin: 1rem 0;
           }
         }
       `}</style>
