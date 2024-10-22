@@ -380,7 +380,7 @@ export default function CalendarView() {
   return (
     <div className="calendar-container">
       <div className="calendar-header">
-        <h1>Simple Calendar Sharing App</h1>
+        <h1>Copy Paste Calendar</h1>
         <div className="user-info">
           {session?.user?.name && (
             <span>Signed in as: {session.user.email}</span>

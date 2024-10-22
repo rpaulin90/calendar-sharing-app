@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Background Calendar -->
+  <rect x="7" y="7" width="13" height="16" fill="#4285f4" rx="2"/>
+  <rect x="7" y="7" width="13" height="4" fill="#3367d6" rx="2"/>
+  <rect x="9" y="5" width="2" height="4" fill="#3367d6" rx="1"/>
+  <rect x="16" y="5" width="2" height="4" fill="#3367d6" rx="1"/>
+  
+  <!-- Foreground Calendar -->
+  <rect x="12" y="11" width="13" height="16" fill="#34a853" rx="2"/>
+  <rect x="12" y="11" width="13" height="4" fill="#288840" rx="2"/>
+  <rect x="14" y="9" width="2" height="4" fill="#288840" rx="1"/>
+  <rect x="21" y="9" width="2" height="4" fill="#288840" rx="1"/>
+</svg>
