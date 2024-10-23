@@ -488,6 +488,8 @@ export default function CalendarView() {
           eventPropGetter={eventStyleGetter}
           formats={formats}
           tooltipAccessor={(event) => event.isAvailability ? 'Your availability' : `${event.title} (${event.email})`}
+          step={15} // Set time slot interval to 15 minutes
+          timeslots={4} // Show one slot per step
         />
       </div>
       {modalEvent && (
