@@ -3,6 +3,7 @@ import Head from 'next/head'
 import { useState } from 'react'
 import CalendarView from '../components/CalendarView'
 import { ArrowRight } from 'lucide-react'
+import Link from 'next/link'
 
 const GoogleSignInButton = ({ onClick, isLoading }) => {
   return (
@@ -121,11 +122,11 @@ export default function Home() {
             </button>
           </div> */}
 
-          <div className="permissions-section">
+          {/* <div className="permissions-section">
             <button onClick={togglePermissions} className="toggle-permissions">
               {showPermissions ? 'Hide app access details' : 'Learn about app access'}
             </button>
-          </div>
+          </div> */}
 
         </div>
 
@@ -153,6 +154,9 @@ export default function Home() {
       </main>
 
       <footer>
+      <Link href="/privacy-policy" className="footer-link">
+    Privacy Policy
+  </Link>
         {/* <a
           href="https://github.com/yourusername/your-repo"
           target="_blank"
@@ -197,6 +201,19 @@ export default function Home() {
           display: flex;
           justify-content: center;
           align-items: center;
+          gap: 2rem;
+        }
+        
+        .footer-link {
+          color: #666;
+          text-decoration: none;
+          font-size: 0.9rem;
+          transition: color 0.3s ease;
+        }
+        
+        .footer-link:hover {
+          color: #0070f3;
+          text-decoration: underline;
         }
 
         footer a {
