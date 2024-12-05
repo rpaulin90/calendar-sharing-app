@@ -193,7 +193,8 @@ export default function CalendarView() {
           backgroundColor: 'green',
           opacity: 0.8,
           color: 'white',
-          border: 'none'
+          border: 'none',
+          minHeight:'.26%'
         }
       };
     } else {
@@ -203,7 +204,9 @@ export default function CalendarView() {
           backgroundColor: color,
           opacity: 0.7,
           color: 'white',
-          border: 'none'
+          border: 'none',
+          minHeight:'.26%'
+
         }
       };
     }
@@ -222,7 +225,7 @@ export default function CalendarView() {
     });
 
     const slots = [];
-    const slotDuration = 30; // 30-minute slots
+    const slotDuration = 15; // 30-minute slots
 
     while (start.isBefore(end)) {
       if (includeWeekends || (start.day() !== 0 && start.day() !== 6)) {
@@ -490,6 +493,8 @@ export default function CalendarView() {
           tooltipAccessor={(event) => event.isAvailability ? 'Your availability' : `${event.title} (${event.email})`}
           step={15} // Set time slot interval to 15 minutes
           timeslots={4} // Show one slot per step
+          min_duration={15}
+          dayLayoutAlgorithm="no-overlap"
         />
       </div>
       {modalEvent && (
