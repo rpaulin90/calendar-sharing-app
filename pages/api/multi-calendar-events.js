@@ -24,11 +24,23 @@ export default async function handler(req, res) {
 
   const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
+  console.log('OAuth client setup complete');
+
+
   try {
     const { start, end, emails } = req.query;
+    console.log('Request params:', { start, end, emails });
+    console.log('Session status:', { 
+      hasSession: !!session,
+      hasAccessToken: !!session?.accessToken,
+      tokenError: session?.error
+    });
+
     const emailList = emails.split(',');
 
     let allEvents = [];
+
+    console.log(`Fetching calendar for ${email}`);
 
     for (const email of emailList) {
       const response = await calendar.events.list({
@@ -38,6 +50,7 @@ export default async function handler(req, res) {
         singleEvents: true,
         orderBy: "startTime",
       });
+      console.log(`Calendar response status for ${email}:`, response.status);
 
       //console.log(`Full event data for ${email}:`, JSON.stringify(response.data.items, null, 2));
 
@@ -61,10 +74,12 @@ export default async function handler(req, res) {
 
     res.status(200).json(allEvents);
   } catch (error) {
-    console.error('Error fetching calendar events:', {
+    console.error('Calendar API error:', {
       code: error.code,
       message: error.message,
-      stack: error.stack
+      stack: error.stack,
+      name: error.name,
+      response: error.response?.data
     });
     console.error("Error fetching calendar events:", error);
     if (error.code === 401) {
