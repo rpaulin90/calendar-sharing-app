@@ -193,8 +193,7 @@ export default function CalendarView() {
           backgroundColor: 'green',
           opacity: 0.8,
           color: 'white',
-          border: 'none',
-          minHeight:'.26%'
+          border: 'none'
         }
       };
     } else {
@@ -204,8 +203,7 @@ export default function CalendarView() {
           backgroundColor: color,
           opacity: 0.7,
           color: 'white',
-          border: 'none',
-          minHeight:'.26%'
+          border: 'none'
 
         }
       };
@@ -493,8 +491,7 @@ export default function CalendarView() {
           tooltipAccessor={(event) => event.isAvailability ? 'Your availability' : `${event.title} (${event.email})`}
           step={15} // Set time slot interval to 15 minutes
           timeslots={4} // Show one slot per step
-          min_duration={15}
-          dayLayoutAlgorithm="no-overlap"
+          
         />
       </div>
       {modalEvent && (
