@@ -76,6 +76,9 @@ export default function CalendarView() {
     
     try {
       const response = await fetch(`/api/multi-calendar-events?start=${startISO}&end=${endISO}&emails=${emailsString}`);
+      console.log('Calendar API response status:', response.status);
+
+
       if (response.ok) {
         const data = await response.json();
 
@@ -111,6 +114,9 @@ export default function CalendarView() {
   }, []);
 
   useEffect(() => {
+    console.log('Session status:', status);
+    console.log('Session data:', session);
+
     if (status === "authenticated" && session?.user?.email) {
       const emails = [
         ...(includeUserCalendar ? [session.user.email] : []),
@@ -193,7 +199,8 @@ export default function CalendarView() {
           backgroundColor: 'green',
           opacity: 0.8,
           color: 'white',
-          border: 'none'
+          border: 'none',
+          minHeight:'.26%'
         }
       };
     } else {
@@ -203,7 +210,8 @@ export default function CalendarView() {
           backgroundColor: color,
           opacity: 0.7,
           color: 'white',
-          border: 'none'
+          border: 'none',
+          minHeight:'.26%'
 
         }
       };

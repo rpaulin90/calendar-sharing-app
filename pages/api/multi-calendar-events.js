@@ -3,6 +3,7 @@ import { google } from "googleapis";
 
 export default async function handler(req, res) {
   const session = await getSession({ req });
+  
 
   if (!session || !session.accessToken) {
     return res.status(401).json({ error: "Not authenticated" });
@@ -60,6 +61,11 @@ export default async function handler(req, res) {
 
     res.status(200).json(allEvents);
   } catch (error) {
+    console.error('Error fetching calendar events:', {
+      code: error.code,
+      message: error.message,
+      stack: error.stack
+    });
     console.error("Error fetching calendar events:", error);
     if (error.code === 401) {
       return res.status(401).json({ error: "Access token expired" });
