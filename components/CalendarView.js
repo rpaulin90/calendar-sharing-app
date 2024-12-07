@@ -76,39 +76,33 @@ export default function CalendarView() {
     
     try {
       const response = await fetch(`/api/multi-calendar-events?start=${startISO}&end=${endISO}&emails=${emailsString}`);
-      console.log('Calendar API response status:', response.status);
-
-
-      if (response.ok) {
-        const data = await response.json();
-
-        //console.log('All events:', data);
-
-        // data.forEach((event, index) => {
-        //   console.log(`Event ${index + 1}:`);
-        //   for (const [key, value] of Object.entries(event)) {
-        //     console.log(`  ${key}:`, value);
-        //   }
-        //   console.log('-------------------');
-        // });
-
-        return data.map(event => ({
-          ...event,
-          start: new Date(event.start),
-          end: new Date(event.end),
-          title: event.title || "Busy",
-          isExternal: true,
-        }));
-      } else if (response.status === 401) {
-        await signOut({ redirect: false });
-        window.location.reload();
-        return [];
-      } else {
-        console.error('Failed to fetch events');
-        return [];
+      console.log('Calendar API response:', response.status);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Calendar API error:', error);
+        
+        if (response.status === 401) {
+          // Don't reload automatically - just log out and show an alert
+          console.error('Authentication error - session may be invalid');
+          await signOut({ redirect: false });
+          alert('Session expired - please check console and refresh to sign in again');
+          return [];
+        }
+        throw new Error(error.message || 'Failed to fetch events');
       }
+  
+      const data = await response.json();
+      return data.map(event => ({
+        ...event,
+        start: new Date(event.start),
+        end: new Date(event.end),
+        title: event.title || "Busy",
+        isExternal: true,
+      }));
     } catch (error) {
-      console.error('Error fetching events:', error);
+      console.error('Detailed fetch error:', error);
+      alert('Error fetching events - check console for details');
       return [];
     }
   }, []);
