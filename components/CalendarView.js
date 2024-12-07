@@ -4,8 +4,7 @@ import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import moment from 'moment-timezone';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { signOut, useSession } from 'next-auth/react';
-import AsyncSelect from 'react-select/async';
+import { signOut, useSession, getSession } from "next-auth/react";import AsyncSelect from 'react-select/async';
 import debounce from 'lodash/debounce';
 
 const localizer = momentLocalizer(moment);
@@ -105,6 +104,22 @@ export default function CalendarView() {
       alert('Error fetching events - check console for details');
       return [];
     }
+  }, []);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const currentSession = await getSession();
+      console.log("CalendarView - Session check:", {
+        hasSession: !!currentSession,
+        hasAccessToken: !!currentSession?.accessToken,
+        error: currentSession?.error
+      });
+    };
+
+    checkSession();
+    // Check session every minute
+    const interval = setInterval(checkSession, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {

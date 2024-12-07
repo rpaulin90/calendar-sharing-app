@@ -64,28 +64,44 @@ export default NextAuth({
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
   callbacks: {
-    async jwt({ token, account }) {
-      if (account) {
-        token.accessToken = account.access_token
-        token.idToken = account.id_token
-        token.refreshToken = account.refresh_token
-        token.accessTokenExpires = Date.now() + account.expires_in * 1000
+    async jwt({ token, account, user }) {
+      console.log("JWT Callback - Initial token:", { hasToken: !!token, hasAccount: !!account });
+      
+      if (account && user) {
+        return {
+          ...token,
+          accessToken: account.access_token,
+          refreshToken: account.refresh_token,
+          accessTokenExpires: account.expires_at * 1000,
+          user,
+        }
       }
 
-      // Return previous token if the access token has not expired yet
+      // Return previous token if the access token has not expired
       if (Date.now() < token.accessTokenExpires) {
-        return token
+        return token;
       }
 
-      // Access token has expired, try to update it
-      return refreshAccessToken(token)
+      // Access token has expired
+      console.log("Token expired, attempting refresh");
+      return refreshAccessToken(token);
     },
     async session({ session, token }) {
-      session.accessToken = token.accessToken
-      session.idToken = token.idToken
-      session.error = token.error
-      return session
-    },
-  },
-})
+      console.log("Session Callback - Token state:", { 
+        hasAccessToken: !!token.accessToken,
+        hasError: !!token.error 
+      });
+
+      session.user = token.user;
+      session.accessToken = token.accessToken;
+      session.error = token.error;
+
+      return session;
+    }
+  }
+});
