@@ -3,7 +3,6 @@ import { google } from "googleapis";
 
 export default async function handler(req, res) {
   const session = await getSession({ req });
-  
 
   if (!session || !session.accessToken) {
     return res.status(401).json({ error: "Not authenticated" });
@@ -26,7 +25,6 @@ export default async function handler(req, res) {
 
   console.log('OAuth client setup complete');
 
-
   try {
     const { start, end, emails } = req.query;
     console.log('Request params:', { start, end, emails });
@@ -37,39 +35,42 @@ export default async function handler(req, res) {
     });
 
     const emailList = emails.split(',');
-
     let allEvents = [];
 
-    console.log(`Fetching calendar for ${email}`);
+    for (const userEmail of emailList) {
+      console.log(`Fetching calendar for ${userEmail}`);
+      
+      try {
+        const response = await calendar.events.list({
+          calendarId: userEmail,
+          timeMin: start,
+          timeMax: end,
+          singleEvents: true,
+          orderBy: "startTime",
+        });
+        
+        console.log(`Calendar response status for ${userEmail}:`, response.status);
 
-    for (const email of emailList) {
-      const response = await calendar.events.list({
-        calendarId: email,
-        timeMin: start,
-        timeMax: end,
-        singleEvents: true,
-        orderBy: "startTime",
-      });
-      console.log(`Calendar response status for ${email}:`, response.status);
+        const events = response.data.items
+          .filter(event => event.transparency !== "transparent")
+          .map((event) => ({
+            id: event.id,
+            title: event.summary,
+            start: event.start.dateTime || event.start.date,
+            end: event.end.dateTime || event.end.date,
+            email: userEmail,
+            allDay: !event.start.dateTime,
+            description: event.description,
+            status: event.status,
+            transparency: event.transparency,
+            visibility: event.visibility,
+          }));
 
-      //console.log(`Full event data for ${email}:`, JSON.stringify(response.data.items, null, 2));
-
-      const events = response.data.items
-      .filter(event => event.transparency !== "transparent")
-      .map((event) => ({
-        id: event.id,
-        title: event.summary,
-        start: event.start.dateTime || event.start.date,
-        end: event.end.dateTime || event.end.date,
-        email: email,
-        allDay: !event.start.dateTime,
-        description: event.description,
-        status: event.status,
-        transparency: event.transparency,
-        visibility: event.visibility,
-      }));
-
-      allEvents = [...allEvents, ...events];
+        allEvents = [...allEvents, ...events];
+      } catch (calendarError) {
+        console.error(`Error fetching calendar for ${userEmail}:`, calendarError);
+        // Continue with other calendars even if one fails
+      }
     }
 
     res.status(200).json(allEvents);
@@ -81,10 +82,10 @@ export default async function handler(req, res) {
       name: error.name,
       response: error.response?.data
     });
-    console.error("Error fetching calendar events:", error);
+    
     if (error.code === 401) {
       return res.status(401).json({ error: "Access token expired" });
     }
-    res.status(500).json({ error: "Error fetching calendar events" });
+    res.status(500).json({ error: "Error fetching calendar events", details: error.message });
   }
 }
