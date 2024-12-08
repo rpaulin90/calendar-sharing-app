@@ -1,19 +1,34 @@
 import { getSession } from "next-auth/react";
 import { google } from "googleapis";
 
-export default async function handler(req, res) {
-  try {
-    const session = await getSession({ req });
-    console.log("API Route - Session state:", {
-      hasSession: !!session,
-      hasAccessToken: !!session?.accessToken,
-      error: session?.error
-    });
 
-    if (!session) {
-      console.log("No session found");
-      return res.status(401).json({ error: "No session found" });
-    }
+
+export default async function handler(req, res) {
+  console.log("API Request Headers:", {
+    cookie: req.headers.cookie,
+    host: req.headers.host,
+    origin: req.headers.origin,
+    referer: req.headers.referer
+  });
+
+  console.log("NEXTAUTH_URL:", process.env.NEXTAUTH_URL);
+  console.log("Current hostname:", req.headers.host);
+
+  const session = await getSession({ req });
+  
+  console.log("Session check result:", {
+    hasSession: !!session,
+    sessionDetails: session ? {
+      hasUser: !!session.user,
+      hasAccessToken: !!session.accessToken,
+      error: session.error
+    } : null
+  });
+
+  if (!session) {
+    console.log("No session found");
+    return res.status(401).json({ error: "No session found" });
+  }
 
     if (!session.accessToken) {
       console.log("No access token in session");

@@ -29,7 +29,7 @@ async function refreshAccessToken(token) {
       ...token,
       accessToken: refreshedTokens.access_token,
       accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
-      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken, // Fall back to old refresh token
+      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
     }
   } catch (error) {
     console.log("Token refresh error:", error)
@@ -40,7 +40,7 @@ async function refreshAccessToken(token) {
   }
 }
 
-export default NextAuth({
+export const authOptions = {
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -55,41 +55,45 @@ export default NextAuth({
       }
     }),
   ],
-  debug: true, // Enable debug logs
+  debug: true,
   secret: process.env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
   cookies: {
     sessionToken: {
-      name: 'next-auth.session-token',
+      name: `__Secure-next-auth.session-token`,
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV === 'production',
-        domain: process.env.NODE_ENV === 'production' ? '.copypastecalendar.com' : 'localhost'
-      }
-    },
-    callbackUrl: {
-      name: 'next-auth.callback-url',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
-        domain: process.env.NODE_ENV === 'production' ? '.copypastecalendar.com' : 'localhost'
+        secure: true,
+        domain: process.env.NEXTAUTH_URL ? new URL(process.env.NEXTAUTH_URL).hostname : 'localhost'
       }
     }
   },
   callbacks: {
+    async signIn({ user, account, profile, email, credentials }) {
+      console.log("SignIn Callback:", { 
+        userEmail: user?.email,
+        hasAccount: !!account,
+        hasProfile: !!profile
+      });
+      return true;
+    },
     async jwt({ token, account, user }) {
-      console.log("JWT Callback - Initial token:", {
-        hasAccessToken: !!token.accessToken,
-        hasRefreshToken: !!token.refreshToken,
-        hasError: !!token.error
+      console.log("JWT Callback Entry:", {
+        hasExistingToken: !!token,
+        hasAccount: !!account,
+        hasUser: !!user,
+        tokenExp: token?.accessTokenExpires,
+        currentTime: Date.now()
       });
 
       // Initial sign in
       if (account && user) {
-        console.log("JWT Callback - New sign in detected");
+        console.log("JWT - New sign in processing");
         return {
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
@@ -100,65 +104,49 @@ export default NextAuth({
 
       // Return previous token if the access token has not expired yet
       if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
-        console.log("JWT Callback - Existing token still valid");
+        console.log("JWT - Using existing valid token");
         return token
       }
 
-      console.log("JWT Callback - Token expired, refreshing...");
-      // Access token has expired, try to update it
+      console.log("JWT - Attempting token refresh");
       return refreshAccessToken(token)
     },
-    async session({ session, token }) {
-      console.log("Session Callback - Token:", {
-        hasAccessToken: !!token.accessToken,
-        hasError: !!token.error
+    async session({ session, token, user }) {
+      console.log("Session Callback Entry:", {
+        hasSession: !!session,
+        hasToken: !!token,
+        hasUser: !!user,
+        sessionUser: session?.user?.email,
+        tokenUser: token?.user?.email
       });
 
       session.accessToken = token.accessToken
       session.error = token.error
       session.user = token.user
 
-      console.log("Session Callback - Final session:", {
+      console.log("Session Callback Exit:", {
         hasAccessToken: !!session.accessToken,
         userEmail: session.user?.email,
         hasError: !!session.error
       });
 
       return session
-    },
-    async redirect({ url, baseUrl }) {
-      console.log("Redirect Callback:", { url, baseUrl });
-      // Allows relative callback URLs
-      if (url.startsWith("/")) {
-        return `${baseUrl}${url}`
-      }
-      // Allows callback URLs on the same origin
-      else if (new URL(url).origin === baseUrl) {
-        return url
-      }
-      return baseUrl
     }
   },
   events: {
     async signIn(message) {
-      console.log("SignIn event:", message)
+      console.log("SignIn Event:", message)
     },
     async signOut(message) {
-      console.log("SignOut event:", message)
+      console.log("SignOut Event:", message)
+    },
+    async session(message) {
+      console.log("Session Event:", message)
     },
     async error(message) {
-      console.error("Error event:", message)
-    }
-  },
-  logger: {
-    error(code, ...message) {
-      console.error("NextAuth Error:", { code, message })
-    },
-    warn(code, ...message) {
-      console.warn("NextAuth Warning:", { code, message })
-    },
-    debug(code, ...message) {
-      console.log("NextAuth Debug:", { code, message })
+      console.error("Error Event:", message)
     }
   }
-})
+}
+
+export default NextAuth(authOptions)
