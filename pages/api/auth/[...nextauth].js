@@ -1,6 +1,14 @@
 import NextAuth from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 
+const GOOGLE_AUTHORIZATION_URL =
+  "https://accounts.google.com/o/oauth2/v2/auth?" +
+  new URLSearchParams({
+    prompt: "consent",
+    access_type: "offline",
+    response_type: "code"
+  })
+
 async function refreshAccessToken(token) {
   try {
     const url =
@@ -29,10 +37,10 @@ async function refreshAccessToken(token) {
       ...token,
       accessToken: refreshedTokens.access_token,
       accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
-      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
+      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken, // Fall back to old refresh token
     }
   } catch (error) {
-    console.log("Token refresh error:", error)
+    console.log(error)
     return {
       ...token,
       error: "RefreshAccessTokenError",
@@ -40,7 +48,7 @@ async function refreshAccessToken(token) {
   }
 }
 
-export const authOptions = {
+export default NextAuth({
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -55,98 +63,45 @@ export const authOptions = {
       }
     }),
   ],
-  debug: true,
   secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  cookies: {
-    sessionToken: {
-      name: `__Secure-next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: true,
-        domain: process.env.NEXTAUTH_URL ? new URL(process.env.NEXTAUTH_URL).hostname : 'localhost'
-      }
-    }
-  },
   callbacks: {
-    async signIn({ user, account, profile, email, credentials }) {
-      console.log("SignIn Callback:", { 
-        userEmail: user?.email,
-        hasAccount: !!account,
-        hasProfile: !!profile
-      });
-      return true;
-    },
     async jwt({ token, account, user }) {
-      console.log("JWT Callback Entry:", {
-        hasExistingToken: !!token,
-        hasAccount: !!account,
-        hasUser: !!user,
-        tokenExp: token?.accessTokenExpires,
-        currentTime: Date.now()
-      });
-
-      // Initial sign in
+      console.log("JWT Callback - Initial token:", { hasToken: !!token, hasAccount: !!account });
+      
       if (account && user) {
-        console.log("JWT - New sign in processing");
         return {
+          ...token,
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
-          accessTokenExpires: Date.now() + account.expires_in * 1000,
+          accessTokenExpires: account.expires_at * 1000,
           user,
         }
       }
 
-      // Return previous token if the access token has not expired yet
-      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
-        console.log("JWT - Using existing valid token");
-        return token
+      // Return previous token if the access token has not expired
+      if (Date.now() < token.accessTokenExpires) {
+        return token;
       }
 
-      console.log("JWT - Attempting token refresh");
-      return refreshAccessToken(token)
+      // Access token has expired
+      console.log("Token expired, attempting refresh");
+      return refreshAccessToken(token);
     },
-    async session({ session, token, user }) {
-      console.log("Session Callback Entry:", {
-        hasSession: !!session,
-        hasToken: !!token,
-        hasUser: !!user,
-        sessionUser: session?.user?.email,
-        tokenUser: token?.user?.email
+    async session({ session, token }) {
+      console.log("Session Callback - Token state:", { 
+        hasAccessToken: !!token.accessToken,
+        hasError: !!token.error 
       });
 
-      session.accessToken = token.accessToken
-      session.error = token.error
-      session.user = token.user
+      session.user = token.user;
+      session.accessToken = token.accessToken;
+      session.error = token.error;
 
-      console.log("Session Callback Exit:", {
-        hasAccessToken: !!session.accessToken,
-        userEmail: session.user?.email,
-        hasError: !!session.error
-      });
-
-      return session
-    }
-  },
-  events: {
-    async signIn(message) {
-      console.log("SignIn Event:", message)
-    },
-    async signOut(message) {
-      console.log("SignOut Event:", message)
-    },
-    async session(message) {
-      console.log("Session Event:", message)
-    },
-    async error(message) {
-      console.error("Error Event:", message)
+      return session;
     }
   }
-}
-
-export default NextAuth(authOptions)
+});

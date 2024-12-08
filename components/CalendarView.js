@@ -6,6 +6,8 @@ import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { signOut, useSession, getSession } from "next-auth/react";import AsyncSelect from 'react-select/async';
 import debounce from 'lodash/debounce';
+import axios from 'axios';
+
 
 const localizer = momentLocalizer(moment);
 const DnDCalendar = withDragAndDrop(Calendar);
@@ -74,24 +76,17 @@ export default function CalendarView() {
     const emailsString = emails.join(',');
     
     try {
-      const response = await fetch(`/api/multi-calendar-events?start=${startISO}&end=${endISO}&emails=${emailsString}`);
-      console.log('Calendar API response:', response.status);
-      
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('Calendar API error:', error);
-        
-        if (response.status === 401) {
-          // Don't reload automatically - just log out and show an alert
-          console.error('Authentication error - session may be invalid');
-          await signOut({ redirect: false });
-          alert('Session expired - please check console and refresh to sign in again');
-          return [];
+      const response = await axios.get('/api/multi-calendar-events', {
+        params: {
+          start: startISO,
+          end: endISO,
+          emails: emailsString
         }
-        throw new Error(error.message || 'Failed to fetch events');
-      }
+      });
   
-      const data = await response.json();
+      console.log('Calendar API response status:', response.status);
+  
+      const data = response.data;
       return data.map(event => ({
         ...event,
         start: new Date(event.start),
@@ -100,8 +95,20 @@ export default function CalendarView() {
         isExternal: true,
       }));
     } catch (error) {
-      console.error('Detailed fetch error:', error);
-      alert('Error fetching events - check console for details');
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401) {
+          await signOut({ redirect: false });
+          window.location.reload();
+          return [];
+        }
+        console.error('Calendar API error:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          headers: error.response?.headers
+        });
+      } else {
+        console.error('Error fetching events:', error);
+      }
       return [];
     }
   }, []);
@@ -300,20 +307,27 @@ export default function CalendarView() {
 
   const fetchDirectoryPeople = async (inputValue) => {
     if (inputValue.length < 3) return [];
+    
     try {
-      const response = await fetch(`/api/directory-people?search=${inputValue}`);
-      if (response.ok) {
-        const data = await response.json();
-        return data.people.map(person => ({
-          value: person.email,
-          label: `${person.name} (${person.email})`
-        }));
-      } else {
-        console.error('Failed to fetch directory people');
-        return [];
-      }
+      const response = await axios.get('/api/directory-people', {
+        params: {
+          search: inputValue
+        }
+      });
+      
+      return response.data.people.map(person => ({
+        value: person.email,
+        label: `${person.name} (${person.email})`
+      }));
     } catch (error) {
-      console.error('Error fetching directory people:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Directory API error:', {
+          status: error.response?.status,
+          data: error.response?.data
+        });
+      } else {
+        console.error('Error fetching directory people:', error);
+      }
       return [];
     }
   };
