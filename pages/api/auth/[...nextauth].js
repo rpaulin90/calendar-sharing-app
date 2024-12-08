@@ -1,14 +1,6 @@
 import NextAuth from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 
-const GOOGLE_AUTHORIZATION_URL =
-  "https://accounts.google.com/o/oauth2/v2/auth?" +
-  new URLSearchParams({
-    prompt: "consent",
-    access_type: "offline",
-    response_type: "code"
-  })
-
 async function refreshAccessToken(token) {
   try {
     const url =
@@ -40,7 +32,7 @@ async function refreshAccessToken(token) {
       refreshToken: refreshedTokens.refresh_token ?? token.refreshToken, // Fall back to old refresh token
     }
   } catch (error) {
-    console.log(error)
+    console.log("Token refresh error:", error)
     return {
       ...token,
       error: "RefreshAccessTokenError",
@@ -63,45 +55,110 @@ export default NextAuth({
       }
     }),
   ],
+  debug: true, // Enable debug logs
   secret: process.env.NEXTAUTH_SECRET,
-  session: {
-    strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+  cookies: {
+    sessionToken: {
+      name: 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        domain: process.env.NODE_ENV === 'production' ? '.copypastecalendar.com' : 'localhost'
+      }
+    },
+    callbackUrl: {
+      name: 'next-auth.callback-url',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        domain: process.env.NODE_ENV === 'production' ? '.copypastecalendar.com' : 'localhost'
+      }
+    }
   },
   callbacks: {
     async jwt({ token, account, user }) {
-      console.log("JWT Callback - Initial token:", { hasToken: !!token, hasAccount: !!account });
-      
+      console.log("JWT Callback - Initial token:", {
+        hasAccessToken: !!token.accessToken,
+        hasRefreshToken: !!token.refreshToken,
+        hasError: !!token.error
+      });
+
+      // Initial sign in
       if (account && user) {
+        console.log("JWT Callback - New sign in detected");
         return {
-          ...token,
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
-          accessTokenExpires: account.expires_at * 1000,
+          accessTokenExpires: Date.now() + account.expires_in * 1000,
           user,
         }
       }
 
-      // Return previous token if the access token has not expired
-      if (Date.now() < token.accessTokenExpires) {
-        return token;
+      // Return previous token if the access token has not expired yet
+      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
+        console.log("JWT Callback - Existing token still valid");
+        return token
       }
 
-      // Access token has expired
-      console.log("Token expired, attempting refresh");
-      return refreshAccessToken(token);
+      console.log("JWT Callback - Token expired, refreshing...");
+      // Access token has expired, try to update it
+      return refreshAccessToken(token)
     },
     async session({ session, token }) {
-      console.log("Session Callback - Token state:", { 
+      console.log("Session Callback - Token:", {
         hasAccessToken: !!token.accessToken,
-        hasError: !!token.error 
+        hasError: !!token.error
       });
 
-      session.user = token.user;
-      session.accessToken = token.accessToken;
-      session.error = token.error;
+      session.accessToken = token.accessToken
+      session.error = token.error
+      session.user = token.user
 
-      return session;
+      console.log("Session Callback - Final session:", {
+        hasAccessToken: !!session.accessToken,
+        userEmail: session.user?.email,
+        hasError: !!session.error
+      });
+
+      return session
+    },
+    async redirect({ url, baseUrl }) {
+      console.log("Redirect Callback:", { url, baseUrl });
+      // Allows relative callback URLs
+      if (url.startsWith("/")) {
+        return `${baseUrl}${url}`
+      }
+      // Allows callback URLs on the same origin
+      else if (new URL(url).origin === baseUrl) {
+        return url
+      }
+      return baseUrl
+    }
+  },
+  events: {
+    async signIn(message) {
+      console.log("SignIn event:", message)
+    },
+    async signOut(message) {
+      console.log("SignOut event:", message)
+    },
+    async error(message) {
+      console.error("Error event:", message)
+    }
+  },
+  logger: {
+    error(code, ...message) {
+      console.error("NextAuth Error:", { code, message })
+    },
+    warn(code, ...message) {
+      console.warn("NextAuth Warning:", { code, message })
+    },
+    debug(code, ...message) {
+      console.log("NextAuth Debug:", { code, message })
     }
   }
-});
+})
